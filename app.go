@@ -34,7 +34,7 @@ func main() {
 	/*declare a new endpoint on the router*/
 	e.POST("tk/new", CreateTicket)
 	/*run a server*/
-	e.Logger.Fatal((e.Start(":2332")))
+	e.Logger.Error((e.Start(":2332")))
 }
 
 func CreateTicket(c echo.Context) error {
@@ -46,12 +46,27 @@ func CreateTicket(c echo.Context) error {
 		c.JSON(http.StatusInternalServerError, 0)
 		return err
 	}
+	err = UpdateToken(ticket)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, 0)
+		return err
+	}
 	c.JSON(http.StatusOK, ticket.Id)
 	return nil
 }
 
 type Tk struct {
-	Id int
+	Id    int    `json:id`
+	Email string `json:email`
+}
+
+func UpdateToken(to Tk) error {
+	_, err := dbConn.Exec(fmt.Sprintf(`INSERT INTO userToken(ticketno, email) values(%d,'%s')`, to.Id, to.Email))
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return nil
 }
 
 func GetReqJSON(r *http.Request) (interface{}, error) {
