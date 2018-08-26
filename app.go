@@ -8,6 +8,7 @@ import (
 	_ "github.com/lib/pq"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 )
 
 /* the idea is to make a ticket posting api
@@ -33,8 +34,37 @@ func main() {
 	e := echo.New()
 	/*declare a new endpoint on the router*/
 	e.POST("tk/new", CreateTicket)
+	e.POST("tk/update/:token", Update)
 	/*run a server*/
 	e.Logger.Error((e.Start(":2332")))
+}
+
+func Update(c echo.Context) error {
+	defer c.Request().Body.Close()
+	var ticket Tk
+	tk, err := GetReqJSON(c.Request())
+	ticket = tk.(Tk)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, 0)
+		return err
+	}
+	/* set the token*/
+	ticket.Id, err = strconv.Atoi(c.Param("token"))
+	err = UpdateToken(ticket)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, 0)
+		return err
+	}
+	c.JSON(http.StatusOK, "updated")
+	return nil
+}
+
+func UpdateToken(to Tk) error {
+	_, err := dbConn.Exec(fmt.Sprintf(`UPDATE userToken SET email='%s' WHERE ticketno='%d'`, to.Email, to.Id))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func CreateTicket(c echo.Context) error {
@@ -46,7 +76,7 @@ func CreateTicket(c echo.Context) error {
 		c.JSON(http.StatusInternalServerError, 0)
 		return err
 	}
-	err = UpdateToken(ticket)
+	err = CreateToken(ticket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, 0)
 		return err
@@ -60,7 +90,7 @@ type Tk struct {
 	Email string `json:email`
 }
 
-func UpdateToken(to Tk) error {
+func CreateToken(to Tk) error {
 	_, err := dbConn.Exec(fmt.Sprintf(`INSERT INTO userToken(ticketno, email) values(%d,'%s')`, to.Id, to.Email))
 	if err != nil {
 		fmt.Println(err)
