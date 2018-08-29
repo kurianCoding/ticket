@@ -33,10 +33,39 @@ func main() {
 	/*declare a new router*/
 	e := echo.New()
 	/*declare a new endpoint on the router*/
+	e.GET("tk/all", GetAll)
 	e.POST("tk/new", CreateTicket)
 	e.POST("tk/update/:token", Update)
 	/*run a server*/
 	e.Logger.Error((e.Start(":2332")))
+}
+
+func GetAll(c echo.Context) error {
+	tokens, err := GetAllTokens()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, 0)
+		return err
+	}
+	c.JSON(http.StatusOK, tokens)
+	return nil
+}
+
+func GetAllTokens() ([]Tk, error) {
+	rows, err := dbConn.Query(`SELECT email,ticketno FROM userToken`)
+	defer rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	var list []Tk
+
+	var email string
+	var tokenId int
+
+	for rows.Next() {
+		rows.Scan(&email, &tokenId)
+		list = append(list, Tk{tokenId, email})
+	}
+	return list, nil
 }
 
 func Update(c echo.Context) error {
