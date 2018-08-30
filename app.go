@@ -37,7 +37,7 @@ func main() {
 	e.POST("tk/new", CreateTicket)
 	e.POST("tk/update/:token", Update)
 	/*run a server*/
-	e.Logger.Error((e.Start(":2332")))
+	e.Logger.Print((e.Start(":2332")))
 }
 
 func GetAll(c echo.Context) error {
@@ -51,7 +51,7 @@ func GetAll(c echo.Context) error {
 }
 
 func GetAllTokens() ([]Tk, error) {
-	rows, err := dbConn.Query(`SELECT email,ticketno FROM userToken`)
+	rows, err := dbConn.Query(`SELECT email,ticketno,location FROM userToken`)
 	defer rows.Close()
 	if err != nil {
 		return nil, err
@@ -59,15 +59,21 @@ func GetAllTokens() ([]Tk, error) {
 	var list []Tk
 
 	var email string
+	var location string
 	var tokenId int
 
 	for rows.Next() {
-		rows.Scan(&email, &tokenId)
-		list = append(list, Tk{tokenId, email})
+		rows.Scan(&email, &tokenId, &location)
+		list = append(list, Tk{tokenId, email, location})
 	}
 	return list, nil
 }
 
+func Validate(to Tk) error {
+	/*function to validate before entering new or updated
+	  values*/
+	return nil
+}
 func Update(c echo.Context) error {
 	defer c.Request().Body.Close()
 	var ticket Tk
@@ -79,6 +85,12 @@ func Update(c echo.Context) error {
 	}
 	/* set the token*/
 	ticket.Id, err = strconv.Atoi(c.Param("token"))
+	err = Validate(ticket)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, 0)
+		return err
+	}
+
 	err = UpdateToken(ticket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, 0)
@@ -89,7 +101,7 @@ func Update(c echo.Context) error {
 }
 
 func UpdateToken(to Tk) error {
-	_, err := dbConn.Exec(fmt.Sprintf(`UPDATE userToken SET email='%s' WHERE ticketno='%d'`, to.Email, to.Id))
+	_, err := dbConn.Exec(fmt.Sprintf(`UPDATE userToken SET email='%s', location='%s' WHERE ticketno='%d'`, to.Email, to.Location, to.Id))
 	if err != nil {
 		return err
 	}
@@ -115,8 +127,9 @@ func CreateTicket(c echo.Context) error {
 }
 
 type Tk struct {
-	Id    int    `json:id`
-	Email string `json:email`
+	Id       int    `json:id`
+	Email    string `json:email`
+	Location string `json:location`
 }
 
 func CreateToken(to Tk) error {
