@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 /* the idea is to make a ticket posting api
@@ -40,6 +41,12 @@ func main() {
 	e.Logger.Print((e.Start(":2332")))
 }
 
+/* controller GetAll
+- this controller returns info for all the users which are registered on to this service
+it does a fetch all function,
+- TODO it will perform pagination, if given the range
+- TODO it will filter queries according email, lattitude and longtitude
+*/
 func GetAll(c echo.Context) error {
 	tokens, err := GetAllTokens()
 	if err != nil {
@@ -50,6 +57,7 @@ func GetAll(c echo.Context) error {
 	return nil
 }
 
+/* this is an all return function, it will return an array of tokens*/
 func GetAllTokens() ([]Tk, error) {
 	rows, err := dbConn.Query(`SELECT email,ticketno,location FROM userToken`)
 	defer rows.Close()
@@ -69,11 +77,17 @@ func GetAllTokens() ([]Tk, error) {
 	return list, nil
 }
 
+/*function to validate before entering new or updated
+  values*/
+
 func Validate(to Tk) error {
-	/*function to validate before entering new or updated
-	  values*/
 	return nil
 }
+
+/*
+update controller, which is called when user wants to update details about oneself
+a user can want to update their email  or location
+*/
 func Update(c echo.Context) error {
 	defer c.Request().Body.Close()
 	var ticket Tk
@@ -100,14 +114,23 @@ func Update(c echo.Context) error {
 	return nil
 }
 
+/*
+this is the function that updates all the variables to database, this is called by
+an edititng or updating controller
+*/
 func UpdateToken(to Tk) error {
-	_, err := dbConn.Exec(fmt.Sprintf(`UPDATE userToken SET email='%s', location='%s' WHERE ticketno='%d'`, to.Email, to.Location, to.Id))
+	location := to.Location
+	locationSplit := strings.Split(location, ",")
+	lat := strings.TrimPrefix(locationSplit[0], "{")
+	long := strings.TrimSuffix(locationSplit[1], "}")
+	_, err := dbConn.Exec(fmt.Sprintf(`UPDATE userToken SET email='%s', lat='%s',long='%s' WHERE ticketno='%d'`, to.Email, lat, long, to.Id))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+/* Create token controller, this is the initial token create controller*/
 func CreateTicket(c echo.Context) error {
 	defer c.Request().Body.Close() /* body will close when response is ended*/
 	var ticket Tk
@@ -117,6 +140,13 @@ func CreateTicket(c echo.Context) error {
 		c.JSON(http.StatusInternalServerError, 0)
 		return err
 	}
+
+	err = Validate(ticket)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, 0)
+		return err
+	}
+
 	err = CreateToken(ticket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, 0)
@@ -126,6 +156,10 @@ func CreateTicket(c echo.Context) error {
 	return nil
 }
 
+/*
+the ticket creation struct, it holds a token number, whic is the Id and the email as well as the
+location of the token creation
+*/
 type Tk struct {
 	Id       int    `json:id`
 	Email    string `json:email`
@@ -133,7 +167,11 @@ type Tk struct {
 }
 
 func CreateToken(to Tk) error {
-	_, err := dbConn.Exec(fmt.Sprintf(`INSERT INTO userToken(ticketno, email) values(%d,'%s')`, to.Id, to.Email))
+	location := to.Location
+	locationSplit := strings.Split(location, ",")
+	lat := strings.TrimPrefix(locationSplit[0], "{")
+	long := strings.TrimSuffix(locationSplit[1], "}")
+	_, err := dbConn.Exec(fmt.Sprintf(`INSERT INTO userToken(ticketno, email,lat,long) values(%d,'%s','%s','%s')`, to.Id, to.Email, lat, long))
 	if err != nil {
 		fmt.Println(err)
 		return err
